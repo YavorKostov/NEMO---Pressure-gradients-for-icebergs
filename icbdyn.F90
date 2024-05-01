@@ -384,8 +384,8 @@ CONTAINS
          ! The explicit acceleration includes the impact of horizontal pressure
          ! gradients rescaled by the density of water over the density of
          ! icebergs
-         zaxe = press_grad_term_x *(pp_rho_seawater/rn_rho_bergs)
-         zaye = press_grad_term_y *(pp_rho_seawater/rn_rho_bergs)
+         zaxe = press_grad_term_x *(pp_rho_seawater/rn_rho_bergs)*(zD/zT)
+         zaye = press_grad_term_y *(pp_rho_seawater/rn_rho_bergs)*(zD/zT)
          ! Another explicit term is the accel. due to wave radiation
          zaxe = zaxe  + zwave_rad * zuwave
          zaye = zaye  + zwave_rad * zvwave
