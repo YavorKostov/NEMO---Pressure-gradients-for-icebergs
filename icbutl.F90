@@ -133,9 +133,16 @@ CONTAINS
                                       ! levels
       ! Computing the hydrostatic pressure gradients as in the liquid ocean
       ! dynamics:
-            DO_3D( 0, 0, 0, 0, 1, jpkm1 )
-              zcoef1 = zcoef0 * e3w_0(ji,jj,jk)  ! scaling factor - includes
-                                                 ! cell thickness
+            DO_2D( 0, 0, 0, 0 )                 ! Surface value
+              zcoef1 = zcoef0 * e3w(ji,jj,1,Kmm)
+              !                                   ! hydrostatic pressure gradient
+              zhpi(ji,jj,1) = zcoef1 * ( rhd(ji+1,jj,1) - rhd(ji,jj,1) ) * r1_e1u(ji,jj)
+              zhpj(ji,jj,1) = zcoef1 * ( rhd(ji,jj+1,1) - rhd(ji,jj,1) ) * r1_e2v(ji,jj)
+            END_2D
+
+            DO_3D( 0, 0, 0, 0, 2, jpkm1 )
+              zcoef1 = zcoef0 * e3w(ji,jj,jk,Kmm)  ! scaling factor - includes           
+                                     ! cell thickness
               zhpi(ji,jj,jk) = zhpi(ji,jj,jk-1)   &
             &           + zcoef1 * (  ( rhd(ji+1,jj,jk) + rhd(ji+1,jj,jk-1) )&
             &           - ( rhd(ji,jj,jk) + rhd(ji,jj,jk-1)))*r1_e1u(ji,jj)&
@@ -145,7 +152,6 @@ CONTAINS
             &           + zcoef1 * (  ( rhd(ji,jj+1,jk) + rhd(ji,jj+1,jk-1) )&
             &           - ( rhd(ji,jj,jk) + rhd(ji,jj,jk-1)))*r1_e2v(ji,jj)&
             &           * vmask(ji,jj,jk)
-
             END_3D
 
        ! Exchange data
@@ -173,9 +179,13 @@ CONTAINS
             e3t_e(1:jpi,1:jpj,jk) = e3t(:,:,jk,Kmm)
          END DO
 
-      ! Additional check on BAS HPC but not on Archer2
+      ! Additional check
          WHERE((ABS(zhpi_e) .GT. MaxPressureGradient) .OR. ISNAN(zhpi_e)) zhpi_e=0._wp 
          WHERE((ABS(zhpj_e) .GT. MaxPressureGradient) .OR. ISNAN(zhpj_e)) zhpj_e=0._wp
+         WRITE(numout,*) 'Max_zhpi_e=', MAXVAL(zhpi_e)
+         WRITE(numout,*) 'Min_zhpi_e=', -MAXVAL(-zhpi_e)
+         WRITE(numout,*) 'Max_zhpj_e=', MAXVAL(zhpj_e)
+         WRITE(numout,*) 'Min_zhpj_e=', -MAXVAL(-zhpj_e)
 
          toce_e(1:jpi,1:jpj,:) = ts(:,:,:,1,Kmm)
       END IF
