@@ -19,7 +19,7 @@ MODULE icbutl
    !!----------------------------------------------------------------------
    USE par_oce                             ! ocean parameters
    USE phycst, ONLY : grav
-   USE oce,    ONLY: ts, uu, vv, rhd
+   USE oce,    ONLY: ts, uu, vv, rhd, ssh
    USE dom_oce                             ! ocean domain
    USE in_out_manager                      ! IO parameters
    USE lbclnk                              ! lateral boundary condition
@@ -80,7 +80,8 @@ CONTAINS
       REAL(wp), DIMENSION(jpi,jpj) :: zssh_lead_m    !    ocean surface (ssh_m) if ice is not embedded
       !                                              !    ocean surface in leads if ice is embedded   
 #endif
-      REAL(wp) ::   zcoef0, zcoef1                   ! scaling factors for
+      REAL(wp) ::   zcoef0, zcoef1, zuap, zvap       ! scaling factors and
+                                                     ! corrections for
                                                      ! hydrostatic pressure
       REAL(wp), DIMENSION(A2D(nn_hls), jpk) ::  zhpi, zhpj  ! hydrostatic pressure gradient
       INTEGER ::   ji, jj ! horizontal loop indices
@@ -134,25 +135,41 @@ CONTAINS
       ! Computing the hydrostatic pressure gradients as in the liquid ocean
       ! dynamics:
             DO_2D( 0, 0, 0, 0 )                 ! Surface value
-              zcoef1 = zcoef0 * e3w(ji,jj,1,Kmm)
+!              zcoef1 = zcoef0 * e3w(ji,jj,1,Kmm)
               !                                   ! hydrostatic pressure gradient
-              zhpi(ji,jj,1) = zcoef1 * ( rhd(ji+1,jj,1) - rhd(ji,jj,1) ) * r1_e1u(ji,jj)
-              zhpj(ji,jj,1) = zcoef1 * ( rhd(ji,jj+1,1) - rhd(ji,jj,1) ) * r1_e2v(ji,jj)
+              zhpi(ji,jj,1) = zcoef0 * r1_e1u(ji,jj)                      &
+            &          * (  e3w(ji+1,jj  ,1,Kmm) * rhd(ji+1,jj  ,1)  &
+            &             - e3w(ji  ,jj  ,1,Kmm) * rhd(ji  ,jj  ,1)  )
+              zhpj(ji,jj,1) = zcoef0 * r1_e2v(ji,jj)                      &
+            &          * (  e3w(ji  ,jj+1,1,Kmm) * rhd(ji  ,jj+1,1)  &
+            &             - e3w(ji  ,jj  ,1,Kmm) * rhd(ji  ,jj  ,1)  )
+              zuap = -zcoef0 * ( rhd    (ji+1,jj,1) + rhd    (ji,jj,1) )   &
+            &           * ( gde3w(ji+1,jj,1) - gde3w(ji,jj,1) ) * r1_e1u(ji,jj)
+              zvap = -zcoef0 * ( rhd    (ji,jj+1,1) + rhd    (ji,jj,1) )   &
+            &           * ( gde3w(ji,jj+1,1) - gde3w(ji,jj,1) ) * r1_e2v(ji,jj)
+              zhpi(ji,jj,1) = zhpi(ji,jj,1) + zuap
+              zhpj(ji,jj,1) = zhpj(ji,jj,1) + zvap
             END_2D
 
             DO_3D( 0, 0, 0, 0, 2, jpkm1 )
-              zcoef1 = zcoef0 * e3w(ji,jj,jk,Kmm)  ! scaling factor - includes           
+!              zcoef1 = zcoef0 * e3w(ji,jj,jk,Kmm)  ! scaling factor - includes           
                                      ! cell thickness
-              zhpi(ji,jj,jk) = zhpi(ji,jj,jk-1)   &
-            &           + zcoef1 * (  ( rhd(ji+1,jj,jk) + rhd(ji+1,jj,jk-1) )&
-            &           - ( rhd(ji,jj,jk) + rhd(ji,jj,jk-1)))*r1_e1u(ji,jj)&
-            &           * umask(ji,jj,jk)
-
-              zhpj(ji,jj,jk) = zhpj(ji,jj,jk-1)   &
-            &           + zcoef1 * (  ( rhd(ji,jj+1,jk) + rhd(ji,jj+1,jk-1) )&
-            &           - ( rhd(ji,jj,jk) + rhd(ji,jj,jk-1)))*r1_e2v(ji,jj)&
-            &           * vmask(ji,jj,jk)
+              zhpi(ji,jj,jk) = zhpi(ji,jj,jk-1) + zcoef0 * r1_e1u(ji,jj) &
+            &           * (  e3w(ji+1,jj,jk,Kmm) * ( rhd(ji+1,jj,jk) + rhd(ji+1,jj,jk-1) )  &
+            &              - e3w(ji  ,jj,jk,Kmm) * ( rhd(ji  ,jj,jk) + rhd(ji,jj,jk-1) )  )
+              zhpj(ji,jj,jk) = zhpj(ji,jj,jk-1) + zcoef0 * r1_e2v(ji,jj) &
+            &           * (  e3w(ji,jj+1,jk,Kmm) * ( rhd(ji,jj+1,jk) + rhd(ji,jj+1,jk-1) )  &
+            &              - e3w(ji,jj  ,jk,Kmm) * ( rhd(ji,jj,  jk) + rhd(ji,jj,jk-1) )  )
+              zuap = -zcoef0 * ( rhd   (ji+1,jj  ,jk) + rhd   (ji,jj,jk) )   &
+            &           * ( gde3w(ji+1,jj  ,jk) - gde3w(ji,jj,jk) ) / e1u(ji,jj)
+              zvap = -zcoef0 * ( rhd   (ji  ,jj+1,jk) + rhd   (ji,jj,jk) )   &
+            &           * ( gde3w(ji  ,jj+1,jk) - gde3w(ji,jj,jk) ) / e2v(ji,jj)
+              zhpi(ji,jj,jk) = zhpi(ji,jj,jk) + zuap
+              zhpj(ji,jj,jk) = zhpj(ji,jj,jk) + zvap
             END_3D
+
+         WRITE(numout,*) 'Sampled_e3w=', e3w(10,10,2,Kmm)
+         WRITE(numout,*) 'Sampled_gde3w=', gde3w(10,10,2)
 
        ! Exchange data
          DO jk = 1,jpk
