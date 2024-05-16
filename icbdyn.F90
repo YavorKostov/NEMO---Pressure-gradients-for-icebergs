@@ -292,6 +292,7 @@ CONTAINS
       REAL(wp), DIMENSION(jpk) :: zhpi_profile, zhpj_profile, zuoce, zvoce, ze3t, zdepw
       REAL(wp) ::   pi0, pj0     ! previous iceberg position
       INTEGER  ::   berg_number
+      INTEGER  ::   DoNotDebugExplicitForcing
       !!----------------------------------------------------------------------
 
       ! Interpolate gridded fields to berg
@@ -356,6 +357,9 @@ CONTAINS
          CALL icb_utl_zavg(press_grad_term_x, zhpi_profile, ze3t, zD, ikb)
          CALL icb_utl_zavg(press_grad_term_y, zhpj_profile, ze3t, zD, ikb)
 
+         press_grad_term_x= press_grad_term_x -grav * zssh_x
+         press_grad_term_y= press_grad_term_y -grav * zssh_y
+
       ELSE
          zuo = zssu
          zvo = zssv
@@ -364,6 +368,7 @@ CONTAINS
          press_grad_term_x= -grav * zssh_x
          press_grad_term_y= -grav * zssh_y
       END IF
+
 
       zuveln = puvel   ;   zvveln = pvvel ! Copy starting uvel, vvel
       !
@@ -402,6 +407,34 @@ CONTAINS
        & '-grav*zssh_x=',-grav*zssh_x
         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
        & '-grav*zssh_y=',-grav*zssh_y
+        WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zuo=',zuo
+        WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zvo=',zvo
+
+       DoNotDebugExplicitForcing = 1
+      IF(DoNotDebugExplicitForcing .NE. 0) THEN
+
+        WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'z_ocnCoefficient=',z_ocn
+        WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zdrag_ocnCoefficient=',zdrag_ocn
+        WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'z_atmCoefficient=',z_atm
+        WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zdrag_atmCoefficient=',zdrag_atm
+         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zaxeCoriol',+zff*pvvel
+         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zayeCoriol',-zff*puvel
+         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zdrag_ocnTermX',-zdrag_ocn*(puvel0-zuo)
+         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zdrag_ocnTermY',-zdrag_ocn*(pvvel0-zvo)
+         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zdrag_atmTermX',-zdrag_atm*(puvel0-zua)
+         WRITE(numout,*) 'berg num', berg_number,'kt=',kt,'pi0,pj0=',pi0, pj0, &
+       & 'zdrag_atmTermY',-zdrag_atm*(pvvel0-zva)
 
          IF( pp_alpha > 0._wp ) THEN   ! If implicit, use time-level (n) rather than RK4 latest
             zaxe = zaxe + zff*pvvel0
@@ -432,9 +465,16 @@ CONTAINS
 
          zuveln = puvel0 + pdt*pax
          zvveln = pvvel0 + pdt*pay
+      
+      ELSE
+         pax = zaxe   ;   pay = zaye
+         zuveln = puvel0 + pdt*pax
+         zvveln = pvvel0 + pdt*pay
+      ENDIF ! If we do not debug the pressure terms
          !
       END DO      ! itloop
 
+      IF(DoNotDebugExplicitForcing .NE. 0) THEN
       IF( rn_speed_limit > 0._wp ) THEN       ! Limit speed of bergs based on a CFL criteria (if asked)
          zspeed = SQRT( zuveln*zuveln + zvveln*zvveln )    ! Speed of berg
          IF( zspeed > 0._wp ) THEN
@@ -458,6 +498,9 @@ CONTAINS
             ENDIF
          ENDIF
       ENDIF
+
+      ENDIF ! If we do not debug the pressure terms
+
       !                                      ! check the speed and acceleration limits
       IF (nn_verbose_level > 0) THEN
          IF( ABS( zuveln ) > pp_vel_lim   .OR. ABS( zvveln ) > pp_vel_lim   )   &
