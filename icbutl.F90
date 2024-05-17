@@ -147,8 +147,8 @@ CONTAINS
             &           * ( gde3w(ji+1,jj,1) - gde3w(ji,jj,1) ) * r1_e1u(ji,jj)
               zvap = -zcoef0 * ( rhd    (ji,jj+1,1) + rhd    (ji,jj,1) )   &
             &           * ( gde3w(ji,jj+1,1) - gde3w(ji,jj,1) ) * r1_e2v(ji,jj)
-              zhpi(ji,jj,1) = zhpi(ji,jj,1) + zuap
-              zhpj(ji,jj,1) = zhpj(ji,jj,1) + zvap
+              zhpi(ji,jj,1) = (zhpi(ji,jj,1) + zuap) * umask(ji,jj,1)
+              zhpj(ji,jj,1) = (zhpj(ji,jj,1) + zvap) * vmask(ji,jj,1)
             END_2D
 
             DO_3D( 0, 0, 0, 0, 2, jpkm1 )
@@ -164,8 +164,8 @@ CONTAINS
             &           * ( gde3w(ji+1,jj  ,jk) - gde3w(ji,jj,jk) ) / e1u(ji,jj)
               zvap = -zcoef0 * ( rhd   (ji  ,jj+1,jk) + rhd   (ji,jj,jk) )   &
             &           * ( gde3w(ji  ,jj+1,jk) - gde3w(ji,jj,jk) ) / e2v(ji,jj)
-              zhpi(ji,jj,jk) = zhpi(ji,jj,jk) + zuap
-              zhpj(ji,jj,jk) = zhpj(ji,jj,jk) + zvap
+              zhpi(ji,jj,jk) = (zhpi(ji,jj,jk) + zuap) * umask(ji,jj,jk)
+              zhpj(ji,jj,jk) = (zhpj(ji,jj,jk) + zvap) * vmask(ji,jj,jk)
             END_3D
 
          WRITE(numout,*) 'Sampled_e3w=', e3w(10,10,2,Kmm)
