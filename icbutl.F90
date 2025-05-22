@@ -73,7 +73,7 @@ CONTAINS
       !!
       !! ** Purpose :   iceberg initialization.
       !!
-      !! ** Method  :   
+      !! ** Method  : 
       !!----------------------------------------------------------------------
       REAL(wp), DIMENSION(0:jpi+1,0:jpj+1) :: ztmp
 #if defined key_si3
@@ -98,6 +98,7 @@ CONTAINS
       ssu_e(1:jpi,1:jpj) = ssu_m(:,:) * umask(:,:,1)
       ssv_e(1:jpi,1:jpj) = ssv_m(:,:) * vmask(:,:,1)
       sst_e(1:jpi,1:jpj) = sst_m(:,:)
+      bathy_e(1:jpi,1:jpj)=bathy(:,:)
       sss_e(1:jpi,1:jpj) = sss_m(:,:)
       fr_e (1:jpi,1:jpj) = fr_i (:,:)
       ua_e (1:jpi,1:jpj) = utau_icb (:,:) * umask(:,:,1) ! maybe mask useless because mask applied in sbcblk
@@ -122,13 +123,12 @@ CONTAINS
 #else
       ssh_e(1:jpi, 1:jpj) = ssh_m(:,:) * tmask(:,:,1)         
 #endif
-
       !
       ! (PM) could be improve with a 3d lbclnk gathering both variables
       ! should be done once extra haloe generalised
       IF ( ln_M2016 ) THEN
 
-            zcoef0 = - grav * 0.5_wp  ! gravitational acceleration and factor of
+           zcoef0 = - grav * 0.5_wp  ! gravitational acceleration and factor of
                                       ! 1/2 because we average the pressure
                                       ! gradients of two adjacent vertical
                                       ! levels
@@ -136,7 +136,8 @@ CONTAINS
       ! dynamics:
             DO_2D( 0, 0, 0, 0 )                 ! Surface value
 !              zcoef1 = zcoef0 * e3w(ji,jj,1,Kmm)
-              !                                   ! hydrostatic pressure gradient
+              !                                   ! hydrostatic pressure
+              !                                   gradient
               zhpi(ji,jj,1) = zcoef0 * r1_e1u(ji,jj)                      &
             &          * (  e3w(ji+1,jj  ,1,Kmm) * rhd(ji+1,jj  ,1)  &
             &             - e3w(ji  ,jj  ,1,Kmm) * rhd(ji  ,jj  ,1)  )
@@ -147,12 +148,12 @@ CONTAINS
             &           * ( gde3w(ji+1,jj,1) - gde3w(ji,jj,1) ) * r1_e1u(ji,jj)
               zvap = -zcoef0 * ( rhd    (ji,jj+1,1) + rhd    (ji,jj,1) )   &
             &           * ( gde3w(ji,jj+1,1) - gde3w(ji,jj,1) ) * r1_e2v(ji,jj)
-              zhpi(ji,jj,1) = (zhpi(ji,jj,1) + zuap) * umask(ji,jj,1)
-              zhpj(ji,jj,1) = (zhpj(ji,jj,1) + zvap) * vmask(ji,jj,1)
+              zhpi(ji,jj,1) = (zhpi(ji,jj,1) + zuap)*umask(ji,jj,1)*tmask(ji,jj,1)*tmask(ji+1,jj,1)
+              zhpj(ji,jj,1) = (zhpj(ji,jj,1) + zvap)*vmask(ji,jj,1)*tmask(ji,jj,1)*tmask(ji,jj+1,1)
             END_2D
 
             DO_3D( 0, 0, 0, 0, 2, jpkm1 )
-!              zcoef1 = zcoef0 * e3w(ji,jj,jk,Kmm)  ! scaling factor - includes           
+!              zcoef1 = zcoef0 * e3w(ji,jj,jk,Kmm)  ! scaling factor - includes
                                      ! cell thickness
               zhpi(ji,jj,jk) = zhpi(ji,jj,jk-1) + zcoef0 * r1_e1u(ji,jj) &
             &           * (  e3w(ji+1,jj,jk,Kmm) * ( rhd(ji+1,jj,jk) + rhd(ji+1,jj,jk-1) )  &
@@ -164,12 +165,12 @@ CONTAINS
             &           * ( gde3w(ji+1,jj  ,jk) - gde3w(ji,jj,jk) ) / e1u(ji,jj)
               zvap = -zcoef0 * ( rhd   (ji  ,jj+1,jk) + rhd   (ji,jj,jk) )   &
             &           * ( gde3w(ji  ,jj+1,jk) - gde3w(ji,jj,jk) ) / e2v(ji,jj)
-              zhpi(ji,jj,jk) = (zhpi(ji,jj,jk) + zuap) * umask(ji,jj,jk)
-              zhpj(ji,jj,jk) = (zhpj(ji,jj,jk) + zvap) * vmask(ji,jj,jk)
+              zhpi(ji,jj,jk) = (zhpi(ji,jj,jk) + zuap)*umask(ji,jj,jk)*tmask(ji,jj,1)*tmask(ji+1,jj,1)
+              zhpj(ji,jj,jk) = (zhpj(ji,jj,jk) + zvap)*vmask(ji,jj,jk)*tmask(ji,jj,1)*tmask(ji,jj+1,1)
             END_3D
 
-         WRITE(numout,*) 'Sampled_e3w=', e3w(10,10,2,Kmm)
-         WRITE(numout,*) 'Sampled_gde3w=', gde3w(10,10,2)
+       !  WRITE(numout,*) 'Sampled_e3w=', e3w(10,10,2,Kmm)
+       !  WRITE(numout,*) 'Sampled_gde3w=', gde3w(10,10,2)
 
        ! Exchange data
          DO jk = 1,jpk
@@ -197,12 +198,12 @@ CONTAINS
          END DO
 
       ! Additional check
-         WHERE((ABS(zhpi_e) .GT. MaxPressureGradient) .OR. ISNAN(zhpi_e)) zhpi_e=0._wp 
+         WHERE((ABS(zhpi_e) .GT. MaxPressureGradient) .OR. ISNAN(zhpi_e)) zhpi_e=0._wp
          WHERE((ABS(zhpj_e) .GT. MaxPressureGradient) .OR. ISNAN(zhpj_e)) zhpj_e=0._wp
-         WRITE(numout,*) 'Max_zhpi_e=', MAXVAL(zhpi_e)
-         WRITE(numout,*) 'Min_zhpi_e=', -MAXVAL(-zhpi_e)
-         WRITE(numout,*) 'Max_zhpj_e=', MAXVAL(zhpj_e)
-         WRITE(numout,*) 'Min_zhpj_e=', -MAXVAL(-zhpj_e)
+       !  WRITE(numout,*) 'Max_zhpi_e=', MAXVAL(zhpi_e)
+       !  WRITE(numout,*) 'Min_zhpi_e=', -MAXVAL(-zhpi_e)
+       !  WRITE(numout,*) 'Max_zhpj_e=', MAXVAL(zhpj_e)
+       !  WRITE(numout,*) 'Min_zhpj_e=', -MAXVAL(-zhpj_e)
 
          toce_e(1:jpi,1:jpj,:) = ts(:,:,:,1,Kmm)
       END IF
@@ -211,9 +212,10 @@ CONTAINS
 
 
    SUBROUTINE icb_utl_interp( pi, pj, pe1 , pssu, pui, pua, pssh_i,         &
-      &                               pe2 , pssv, pvi, pva, pssh_j,         &
+      &                               pe2 , pssv, pvi, pva, pssh_j, & 
       &                               izhpi, izhpj,                         &
-      &                               psst, psss, pcn, phi, pff   ,         &
+      &                               issh,   &
+      &                               ibathy, psst, psss, pcn, phi, pff,    &
       &                               plon, plat, ptoce, puoce, pvoce, pe3t )
       !!----------------------------------------------------------------------
       !!                  ***  ROUTINE icb_utl_interp  ***
@@ -235,10 +237,10 @@ CONTAINS
       REAL(wp), INTENT(  out), OPTIONAL ::   pe1, pe2                       ! i- and j scale factors
       REAL(wp), INTENT(  out), OPTIONAL ::   pssu, pssv, pui, pvi, pua, pva ! ocean, ice and wind speeds
       REAL(wp), INTENT(  out), OPTIONAL ::   pssh_i, pssh_j                 ! ssh i- & j-gradients
+      REAL(wp), INTENT(  out), OPTIONAL ::   ibathy, issh
       REAL(wp), INTENT(  out), OPTIONAL ::   psst, psss, pcn, phi, pff      ! SST, SSS, ice concentration, ice thickness, Coriolis
       REAL(wp), INTENT(  out), OPTIONAL ::   plat, plon                     ! position
-      REAL(wp), DIMENSION(jpk), INTENT(  out), OPTIONAL :: izhpi, izhpj, ptoce, puoce, pvoce, pe3t   ! 3D variables
-                                                                            ! including pressure gradients
+      REAL(wp), DIMENSION(jpk), INTENT(  out), OPTIONAL ::   izhpi, izhpj, ptoce, puoce, pvoce, pe3t   ! 3D variables
       !
       REAL(wp), DIMENSION(4) :: zwT  , zwU  , zwV  , zwF   ! interpolation weight
       REAL(wp), DIMENSION(4) :: zmskF, zmskU, zmskV, zmskT ! mask
@@ -261,8 +263,10 @@ CONTAINS
       IF ( PRESENT(plon) ) plon= icb_utl_bilin_h( rlon_e, iiT, ijT, zwT, .true.  )
       IF ( PRESENT(plat) ) plat= icb_utl_bilin_h( rlat_e, iiT, ijT, zwT, .false. )
       !
-      IF ( PRESENT(pssu) ) pssu = icb_utl_bilin_h( ssu_e, iiU, ijU, zwU        , .false. ) ! ocean velocities
-      IF ( PRESENT(pssv) ) pssv = icb_utl_bilin_h( ssv_e, iiV, ijV, zwV        , .false. ) !
+      IF ( PRESENT(pssu) ) pssu = icb_utl_bilin_h( ssu_e, iiU, ijU, zwU*zmskU        , .false. ) ! ocean velocities
+      IF ( PRESENT(pssv) ) pssv = icb_utl_bilin_h( ssv_e, iiV, ijV, zwV*zmskV        , .false. ) !
+      IF ( PRESENT(issh) ) issh = icb_utl_bilin_h( ssh_e, iiT, ijT, zwT*zmskT, .false.) ! issh
+      IF ( PRESENT(ibathy) ) ibathy=icb_utl_bilin_h(bathy_e, iiT, ijT, zwT*zmskT, .false.) ! ibathy
       IF ( PRESENT(psst) ) psst = icb_utl_bilin_h( sst_e, iiT, ijT, zwT * zmskT, .false. ) ! sst
       IF ( PRESENT(psss) ) psss = icb_utl_bilin_h( sss_e, iiT, ijT, zwT * zmskT, .false. ) ! sss
       IF ( PRESENT(pcn ) ) pcn  = icb_utl_bilin_h( fr_e , iiT, ijT, zwT * zmskT, .false. ) ! ice concentration
@@ -314,7 +318,6 @@ CONTAINS
          pvoce(:) = icb_utl_bilin_h( voce_e , iiV, ijV, zw1d )
       END IF
 
-
       IF ( PRESENT(ptoce) ) THEN
          ! for temperature we need to mask the weight properly
          ! no need of extra halo as it is a T point variable
@@ -324,6 +327,7 @@ CONTAINS
          zw1d(4,:) = tmask(iiT+1,ijT+1,:) * zwT(4) * zmskT(4)
          ptoce(:) = icb_utl_bilin_h( toce_e , iiT, ijT, zw1d )
       END IF
+
 
       ! 3d interpolation of pressure gradients
       IF ( PRESENT(izhpi ) .OR. PRESENT(izhpj) ) THEN
@@ -413,8 +417,8 @@ CONTAINS
          ELSEIF( kii >= mig(jpi) ) THEN   ;  ierr = ierr + 1
          ENDIF
          !
-         IF    ( kij <  mjg( 1 ) ) THEN   ;   ierr = ierr + 1
-         ELSEIF( kij >= mjg(jpj) ) THEN   ;   ierr = ierr + 1
+         IF    ( kij <  mjg( 1 ) ) THEN   ;  ierr = ierr + 1
+         ELSEIF( kij >= mjg(jpj) ) THEN   ;  ierr = ierr + 1
          ENDIF
          !
          IF ( ierr > 0 ) THEN
@@ -422,10 +426,10 @@ CONTAINS
             WRITE(numicb,*) pi, kii, mig( 1 ), mig(jpi)
             WRITE(numicb,*) pj, kij, mjg( 1 ), mjg(jpj)
             WRITE(numicb,*) pmsk
-            CALL FLUSH(numicb)
-            CALL ctl_stop('STOP','icb_utl_bilin_e: an icebergs coordinates is out of valid range (out of bound error).'       , &
-                 &                                'This can be fixed using rn_speed_limit=0.4 in &namberg.'                   , &
-                 &                                'More details in the corresponding iceberg.stat file (nn_verbose_level > 0).' )
+!            CALL FLUSH(numicb)
+!            CALL ctl_stop('STOP','icb_utl_bilin_e: an icebergs coordinates is out of valid range (out of bound error).'       , &
+!                 &                                'This can be fixed using rn_speed_limit=0.4 in &namberg.'                   , &
+!                 &                                'More details in the corresponding iceberg.stat file (nn_verbose_level > 0).' )
          END IF
       END IF
       !
